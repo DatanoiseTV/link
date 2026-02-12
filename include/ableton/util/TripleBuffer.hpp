@@ -38,13 +38,17 @@ public:
   TripleBuffer()
     : mBuffers{{{}, {}, {}}}
   {
+#ifndef ESP_PLATFORM
     assert(mState.is_lock_free());
+#endif
   }
 
   explicit TripleBuffer(const T& initial)
     : mBuffers{{initial, initial, initial}}
   {
+#ifndef ESP_PLATFORM
     assert(mState.is_lock_free());
+#endif
   }
 
   TripleBuffer(const TripleBuffer&) = delete;

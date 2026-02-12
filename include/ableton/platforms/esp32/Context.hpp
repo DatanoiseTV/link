@@ -65,9 +65,9 @@ class Context
     {
       xTaskCreatePinnedToCore(run,
                               "link",
-                              8192,
+                              16384,
                               this,
-                              2 | portPRIVILEGE_BIT,
+                              10 | portPRIVILEGE_BIT,
                               &mTaskHandle,
                               LINK_ESP_TASK_CORE_ID);
     }

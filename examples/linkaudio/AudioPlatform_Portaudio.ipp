@@ -63,7 +63,14 @@ int AudioPlatform<Link>::audioCallback(const void* /*inputBuffer*/,
 
   const auto bufferBeginAtOutput = hostTime + engine.mOutputLatency.load();
 
-  engine.audioCallback(bufferBeginAtOutput, inNumFrames);
+  // Generate a sine wave as input for testing
+  std::vector<double> input(inNumFrames);
+  for (unsigned long i = 0; i < inNumFrames; ++i)
+  {
+    input[i] = 0.2 * std::sin(2.0 * M_PI * 440.0 * (platform.mSampleTime + i) / engine.mSampleRate);
+  }
+
+  engine.audioCallback(bufferBeginAtOutput, inNumFrames, input.data(), input.data());
 
   for (unsigned long i = 0; i < inNumFrames; ++i)
   {

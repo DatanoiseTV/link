@@ -26,6 +26,7 @@
 #endif
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 
 namespace ableton
 {
@@ -43,10 +44,12 @@ AudioEngine<Link>::AudioEngine(Link& link)
   , mIsPlaying(false)
   , mLinkAudioRenderer(mLink, mSampleRate)
 {
+#ifndef ESP_PLATFORM
   if (!mOutputLatency.is_lock_free())
   {
     std::cout << "WARNING: AudioEngine::mOutputLatency is not lock free!" << std::endl;
   }
+#endif
 }
 
 template <typename Link>
@@ -202,24 +205,40 @@ void AudioEngine<Link>::renderMetronomeIntoBuffer(
                     * (1 - sin(5 * M_PI * secondsAfterClick.count()));
       }
     }
-    mBuffers[0][i] = amplitude;
+    mBuffers[0][i] += amplitude;
   }
 }
 
 template <typename Link>
 void AudioEngine<Link>::audioCallback(const std::chrono::microseconds hostTime,
-                                      const std::size_t numSamples)
+                                      const std::size_t numSamples,
+                                      const double* pInputLeft,
+                                      const double* pInputRight)
 {
   const auto engineData = pullEngineData();
 
   auto sessionState = mLink.captureAudioSessionState();
 
-  // Clear the buffer
-  for (auto& buffer : mBuffers)
+  // 1. Initialize buffers with input or silence
+  if (pInputLeft)
   {
-    std::fill(buffer.begin(), buffer.end(), 0);
+    std::copy_n(pInputLeft, numSamples, mBuffers[0].begin());
+  }
+  else
+  {
+    std::fill(mBuffers[0].begin(), mBuffers[0].end(), 0);
   }
 
+  if (pInputRight)
+  {
+    std::copy_n(pInputRight, numSamples, mBuffers[1].begin());
+  }
+  else
+  {
+    std::fill(mBuffers[1].begin(), mBuffers[1].end(), 0);
+  }
+
+  // 2. Handle transport and tempo
   if (engineData.requestStart)
   {
     sessionState.setIsPlaying(true, hostTime);
@@ -232,7 +251,6 @@ void AudioEngine<Link>::audioCallback(const std::chrono::microseconds hostTime,
 
   if (!mIsPlaying && sessionState.isPlaying())
   {
-    // Reset the timeline so that beat 0 corresponds to the time when transport starts
     sessionState.requestBeatAtStartPlayingTime(0, engineData.quantum);
     mIsPlaying = true;
   }
@@ -243,27 +261,39 @@ void AudioEngine<Link>::audioCallback(const std::chrono::microseconds hostTime,
 
   if (engineData.requestedTempo > 0)
   {
-    // Set the newly requested tempo from the beginning of this buffer
     sessionState.setTempo(engineData.requestedTempo, hostTime);
   }
 
-  // Timeline modifications are complete, commit the results
   mLink.commitAudioSessionState(sessionState);
 
-  if (mIsPlaying)
-  {
-    // As long as the engine is playing, generate metronome clicks in
-    // the buffer at the appropriate beats.
-    renderMetronomeIntoBuffer(sessionState, engineData.quantum, hostTime, numSamples);
-  }
-
+  // 3. Link Audio Send and Receive
+  // mLinkAudioRenderer(input, output, ...) will send mBuffers[0] and receive into mBuffers[1]
   mLinkAudioRenderer(mBuffers[0].data(),
                      mBuffers[1].data(),
-                     mBuffers[0].size(),
+                     numSamples,
                      sessionState,
                      mSampleRate,
                      hostTime,
                      engineData.quantum);
+
+  // Clear the input from the local buffer so it's not heard in the speakers
+  std::fill(mBuffers[0].begin(), mBuffers[0].end(), 0.0);
+
+  // 4. Mix metronome into mBuffers[0] for local monitoring AFTER sending pure input
+  if (mIsPlaying)
+  {
+    renderMetronomeIntoBuffer(sessionState, engineData.quantum, hostTime, numSamples);
+  }
+
+  // 5. Final safety clamping and master gain
+  constexpr double kMasterGain = 0.7;
+  for (auto& buffer : mBuffers)
+  {
+    for (auto& sample : buffer)
+    {
+      sample = std::max(-1.0, std::min(1.0, sample * kMasterGain));
+    }
+  }
 }
 
 } // namespace linkaudio

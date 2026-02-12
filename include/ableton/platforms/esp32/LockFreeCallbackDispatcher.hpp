@@ -51,7 +51,7 @@ public:
 
   ~LockFreeCallbackDispatcher() { stop(); }
 
-  void start() { xTaskCreate(run, "link", 4096, this, tskIDLE_PRIORITY, &mTaskHandle); }
+  void start() { xTaskCreate(run, "link", 32768, this, tskIDLE_PRIORITY, &mTaskHandle); }
 
   void stop()
   {

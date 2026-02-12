@@ -49,6 +49,27 @@ struct State
     , link(120., name)
     , audioPlatform(link)
   {
+    link.setChannelsChangedCallback([this]() { onChannelsChanged(); });
+    link.enable(true);
+    link.enableLinkAudio(true);
+  }
+
+  void onChannelsChanged()
+  {
+    const auto channels = link.channels();
+    auto& renderer = audioPlatform.mEngine.mLinkAudioRenderer;
+
+    if (channels.empty())
+    {
+      if (renderer.hasSource())
+      {
+        renderer.removeSource();
+      }
+    }
+    else if (!renderer.hasSource())
+    {
+      renderer.createSource(channels[0].id);
+    }
   }
 };
 

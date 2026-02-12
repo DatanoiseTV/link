@@ -66,7 +66,10 @@ public:
                                  double quantum,
                                  std::chrono::microseconds beginHostTime,
                                  std::size_t numSamples);
-  void audioCallback(const std::chrono::microseconds hostTime, std::size_t numSamples);
+  void audioCallback(const std::chrono::microseconds hostTime,
+                     std::size_t numSamples,
+                     const double* pInputLeft = nullptr,
+                     const double* pInputRight = nullptr);
 
   Link& mLink;
   double mSampleRate;

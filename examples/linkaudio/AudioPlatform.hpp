@@ -31,6 +31,10 @@
 #include "AudioPlatform_Dummy.hpp"
 #endif
 
+#if defined(LINKHUT_AUDIO_PLATFORM_ESP32)
+#include "AudioPlatform_ESP32.hpp"
+#endif
+
 #if defined(LINKHUT_AUDIO_PLATFORM_JACK)
 #include "AudioPlatform_Jack.hpp"
 #endif
